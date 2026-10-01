@@ -1,45 +1,41 @@
 # site-analytics
 
-First-party analytics for <https://hoeksemaa.github.io>, on one Cloudflare
-Worker and one D1 database. Free tier, no third-party service, no cookie
-banner, no vendor.
-
-Everything here is public on purpose. The dashboard is an easter egg, not a
-secret — the only thing protecting it is that the path is not linked anywhere.
+A request log for <https://johnhoeksema.com>, on one Cloudflare Worker and one
+D1 database. Free tier, no script on the site, no third-party service.
 
 | | |
 |---|---|
-| Dashboard | <https://hx-7f3a91c4.hoeksemaa.workers.dev/back-room> |
-| Collector | `https://hx-7f3a91c4.hoeksemaa.workers.dev/s` |
-| Database  | `site-analytics` (D1, region ENAM) |
-| Beacon    | inlined in `hoeksemaa.github.io/_layouts/default.html` |
+| Page | <https://johnhoeksema.com/analytics> (public, not linked anywhere) |
+| Worker | `site-analytics`, on the route `johnhoeksema.com/*` |
+| Database | `site-analytics` (D1), table `requests` |
 
 ## How it works
 
-GitHub Pages serves static files and can run no code, so it can log nothing.
-Instead every page inlines a 1.3 KB (gzipped) beacon. It POSTs one small JSON
-body to the Worker, which stamps on the time, the IP, and the city/ISP data
-Cloudflare attaches to every request, then writes one row to D1.
+Cloudflare runs the DNS for johnhoeksema.com, and the site's `A` records are
+"Proxied" (orange cloud). Thus every request passes through this Worker on its
+way to GitHub Pages. The Worker sends each request on unchanged. When GitHub
+answers with an HTML page, the Worker writes one row: time, path, IP, location,
+and a bot name. It writes the row after the visitor has the response, and an
+error in the Worker falls back to serving the site directly.
 
-The beacon lives in `_layouts/default.html`, and that one layout renders every
-page on the site. **This is why new pages need no configuration.** Add a post,
-a project or a video and it is tracked on its first visit. Delete one and its
-history stays. There is no endpoint list anywhere in this repo, and there never
-should be.
+The Worker skips images, CSS, fonts, video, and redirects. GitHub's 404 page is
+HTML, so requests for missing pages, such as scanner probes, are logged.
+
+`/analytics` is served by the Worker itself. It lists the newest 500 rows, in
+New York time, with an "older" link. Bot rows are grey.
+
+Bot names come from `src/bots.js`: first the user agent, then a list of
+hosting-company networks (`src/dc-asn.js`). A scraper that fakes a normal
+browser from a home network looks like a person.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `src/index.js` | Router and the collector. |
-| `src/api.js` | Dashboard JSON. ORDER BY comes from an allowlist — see the note there. |
-| `src/enrich.js` | Path normalization, New York time bucketing, UA and network parsing. |
-| `src/bots.js` | User-agent classifier. |
-| `src/dc-asn.js` | 723 datacenter ASNs, generated from `brianhama/bad-asn-list` (MIT). |
-| `src/world.js` | Country outlines, decoded from world-atlas 110m. |
-| `src/dashboard.html` / `src/app.tpl` | The dashboard page and its script. |
-| `beacon/beacon.js` | Beacon source. `beacon/snippet.js` is the built, minified copy that goes in the layout. |
-| `schema.sql` | The whole database. |
+| `src/index.js` | The logger and the `/analytics` page. |
+| `src/bots.js` | User agent to bot name. |
+| `src/dc-asn.js` | 723 hosting-company networks, from `brianhama/bad-asn-list` (MIT). |
+| `schema.sql` | The `requests` table. |
 
 ## Commands
 
@@ -47,7 +43,28 @@ should be.
 npm run deploy      # ship the Worker
 npm run schema      # apply schema.sql to the REMOTE database
 npm run backup      # export the database to backups/
-npm run tail        # live errors only
+npm run tail        # live logs
 ```
 
-See `RUNBOOK.md` for the things that need doing occasionally.
+To test locally against the live site, run
+`npx wrangler d1 execute site-analytics --local --file=./schema.sql -y`, then
+`npx wrangler dev --local --local-protocol https`. Use `https`: over `http`,
+GitHub answers every request with a redirect, and the Worker logs nothing.
+
+## Old data
+
+The database also holds the tables of the first version (`events`,
+`endpoints`, `places`, `visitors`, `errors`, `rl`). They hold page views from
+2026-09-16 to 2026-10-01, sent by a script on each page. Nothing reads them now.
+
+## Turn it off
+
+Set the `A` records in Cloudflare back to "DNS only" (grey cloud). The site
+then goes straight to GitHub, and logging stops. To remove the Worker as well,
+run `npx wrangler delete`. The data stays in D1.
+
+## Free-tier limits
+
+Each page request is one Worker request and one D1 row write. Asset requests
+also count as Worker requests. The limits are 100,000 Worker requests and
+100,000 D1 row writes each day.
