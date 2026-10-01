@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "deploy": "wrangler deploy",
-    "tail": "wrangler tail --status error",
+    "tail": "wrangler tail",
     "schema": "wrangler d1 execute site-analytics --remote --file=./schema.sql -y",
     "backup": "wrangler d1 export site-analytics --remote --output=backups/backup-$(date +%F).sql"
   },
@@ -14,7 +14,6 @@
   "license": "ISC",
   "type": "module",
   "devDependencies": {
-    "esbuild": "^0.28.2",
     "wrangler": "^4.132.0"
   },
   "private": true

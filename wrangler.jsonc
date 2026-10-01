@@ -1,17 +1,17 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
 
-  // Deliberately neutral name. EasyPrivacy writes blanket rules at the
-  // workers.dev level (||workers.dev/api/event already exists), so anything
-  // containing analytics/stats/track/metrics/pixel/telemetry risks inheriting
-  // somebody else's block. This name and the /s path match no current rule.
-  "name": "hx-7f3a91c4",
+  "name": "site-analytics",
   "main": "src/index.js",
   "compatibility_date": "2026-09-15",
-  "workers_dev": true,
 
-  // Logs are ON. Every other layer swallows errors by design, so this plus
-  // the errors table is how a broken pipeline stays visible.
+  // The Worker runs only in front of the site. The route fires only while the
+  // johnhoeksema.com DNS records are "Proxied" (orange cloud) in Cloudflare.
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "johnhoeksema.com/*", "zone_name": "johnhoeksema.com" }
+  ],
+
   "observability": { "enabled": true },
 
   "d1_databases": [
@@ -20,17 +20,5 @@
       "database_name": "site-analytics",
       "database_id": "3a2a7940-800a-4fde-9ac8-48f02880e82a"
     }
-  ],
-
-  "vars": {
-    // Public on purpose: John wants the whole thing readable as an easter egg.
-    "DASH_PATH": "/back-room",
-    // Grouping salt for the device fingerprint, not a credential.
-    "FP_SALT": "hx-9d41b6e2"
-  },
-
-  // Import the page, the client script and the basemap as strings.
-  "rules": [
-    { "type": "Text", "globs": ["**/*.html", "**/*.tpl"], "fallthrough": false }
   ]
 }
